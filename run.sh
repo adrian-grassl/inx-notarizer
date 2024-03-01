@@ -1,0 +1,1 @@
+go run main.go --inx.address=localhost:9011 --logger.level=debug
