@@ -45,21 +45,33 @@ func createNotarization(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error preparing wallet")
 	}
 
-	// Prepare to be consumed outputs
-	unspentOutputs := prepInputs(walletObject.Bech32Address)
+	// Prepare outputs to be consumed.
+	unspentOutputs, err := prepInputs(walletObject.Bech32Address)
+	if err != nil {
+		Component.LogErrorf("Error preparing inputs: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error preparing inputs")
+	}
 
-	// Prepare transaction payload
-	txPayload := prepTxPayload(protoParas, unspentOutputs, walletObject.Ed25519Address, walletObject.AddressSigner, hash)
+	// Prepare transaction payload including the notarization hash.
+	txPayload, err := prepTxPayload(protoParas, unspentOutputs, walletObject.Ed25519Address, walletObject.AddressSigner, hash)
+	if err != nil {
+		Component.LogErrorf("Error preparing transaction payload: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error preparing transaction payload")
+	}
 
-	// Prepare and send block
-	hexBlockId := prepAndSendBlock(c, protoParas, txPayload)
-	Component.LogInfof("blockId: %v, %T", hexBlockId, hexBlockId)
+	// Prepare and send the block with the notarization transaction.
+	hexBlockId, err := prepAndSendBlock(c, protoParas, txPayload)
+	if err != nil {
+		Component.LogErrorf("Error sending block: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error sending block")
+	}
+	Component.LogInfof("Block attached with ID: %v", hexBlockId)
 
-	// Return success response with block ID
+	// Return success response with block ID.
 	return c.JSON(http.StatusOK, map[string]string{"blockId": hexBlockId})
 }
 
-// loads Mnemonic phrases from the given environment variable.
+// loadEnvVariable loads mnemonic phrases from the given environment variable.
 func loadEnvVariable(name string) ([]string, error) {
 	keys, exists := os.LookupEnv(name)
 	if !exists {
@@ -71,10 +83,10 @@ func loadEnvVariable(name string) ([]string, error) {
 	}
 
 	phrases := strings.Split(keys, " ")
-
 	return phrases, nil
 }
 
+// prepWallet prepares the wallet for transactions by loading the mnemonic and creating a wallet object.
 func prepWallet(protoParas *iotago.ProtocolParameters) (*WalletObject, error) {
 	mnemonic, err := loadEnvVariable("MNEMONIC")
 	if err != nil {
@@ -82,22 +94,17 @@ func prepWallet(protoParas *iotago.ProtocolParameters) (*WalletObject, error) {
 	}
 	Component.LogDebugf("Mnemonic loaded successfully")
 
-	var wallet *hdwallet.HDWallet
-	if len(mnemonic) > 0 {
-		// new HDWallet instance for address derivation
-		wallet, err = hdwallet.NewHDWallet(protoParas, mnemonic, "", 0, false)
-		if err != nil {
-			return nil, fmt.Errorf("creating wallet failed, err: %s", err)
-		}
-		Component.LogDebugf("Wallet created successfully")
+	wallet, err := hdwallet.NewHDWallet(protoParas, mnemonic, "", 0, false)
+	if err != nil {
+		return nil, fmt.Errorf("creating wallet failed, err: %s", err)
 	}
+	Component.LogDebugf("Wallet created successfully")
 
 	address, signer, err := wallet.Ed25519AddressAndSigner(0)
 	if err != nil {
 		return nil, fmt.Errorf("deriving ed25519 address and signer failed, err: %s", err)
 	}
-	Component.LogDebugf("Address: %v, %T", address, address)
-	Component.LogDebugf("Signer: %v, %T", signer, signer)
+	Component.LogDebugf("Address and signer derived successfully")
 
 	bech32 := address.Bech32("tst")
 	Component.LogDebugf("Bech32 Address: %v, %T", bech32, bech32)
@@ -109,112 +116,76 @@ func prepWallet(protoParas *iotago.ProtocolParameters) (*WalletObject, error) {
 	}, nil
 }
 
-func prepInputs(bech32 string) []UTXOOutput {
-
-	ctxIndexer, cancelIndexer := context.WithTimeout(Component.Daemon().ContextStopped(), indexerPluginAvailableTimeout)
+// prepInputs prepares the inputs for the transaction by fetching UTXO outputs for the wallet address.
+func prepInputs(bech32 string) ([]UTXOOutput, error) {
+	ctxIndexer, cancelIndexer := context.WithTimeout(context.Background(), indexerPluginAvailableTimeout)
 	defer cancelIndexer()
 
-	ctxRequest, cancelRequest := context.WithTimeout(Component.Daemon().ContextStopped(), inxRequestTimeout)
+	ctxRequest, cancelRequest := context.WithTimeout(context.Background(), inxRequestTimeout)
 	defer cancelRequest()
 
 	basicOutputsQuery := &nodeclient.BasicOutputsQuery{
 		AddressBech32: bech32,
 	}
-	Component.LogInfof("basicOutputsQuery: %v, %T", basicOutputsQuery, basicOutputsQuery)
+	Component.LogInfof("Fetching UTXO outputs for address: %s", bech32)
 
 	indexer, err := deps.NodeBridge.Indexer(ctxIndexer)
 	if err != nil {
-		Component.LogErrorfAndExit("Indexer client instance failed, err: %s", err)
-	} else {
-		Component.LogInfof("Indexer client instance loaded successfully")
+		return nil, fmt.Errorf("failed to get indexer client: %v", err)
 	}
 
 	indexerResultSet, err := indexer.Outputs(ctxRequest, basicOutputsQuery)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to fetch outputs from indexer: %v", err)
 	}
-	Component.LogInfof("indexerResultSet: %v, %T", indexerResultSet, indexerResultSet)
 
 	var unspentOutputs []UTXOOutput
-
-	// Runs the next query against the indexer.
-	// Returns false if there are no more results to collect.
-	// Loop only adds Basic Outputs to the lists ingoingOutputs and ingoingOutputIds
 	for indexerResultSet.Next() {
-		Component.LogInfof("indexerResultSet: %v, %T", indexerResultSet, indexerResultSet)
-
-		indexerResponse := indexerResultSet.Response
-		Component.LogInfof("indexerResponse: %v, %T", indexerResponse, indexerResponse)
-		Component.LogInfof("indexerResponse Length: %v, %T", len(indexerResponse.Items), len(indexerResponse.Items))
-
 		outputs, err := indexerResultSet.Outputs()
 		if err != nil {
-			Component.LogErrorf("Failed to fetch outputs: %s", err)
+			return nil, fmt.Errorf("failed to get outputs from indexer result set: %v", err)
 		}
-		Component.LogInfof("outputs: %v, %T", outputs, outputs)
 
 		for i, output := range outputs {
-			Component.LogInfof("Index: %v, %T", i, i)
-			Component.LogInfof("Current OutputId: %v", indexerResponse.Items[i])
-
-			// Only use basic outputs as inputs to a new transaction if they don't use the metadata feature
-			switch o := output.(type) {
-			case *iotago.BasicOutput:
-
-				// Only use basic outputs as inputs to a new transaction if they don't use the metadata feature
-				// This shall prevent that previous notarization outputs are consumed involuntarily
-				if o.FeatureSet().MetadataFeature() == nil {
-					Component.LogInfof("Metadata Feature? false")
-
-					ingoingHexOutputId := iotago.HexOutputIDs{indexerResponse.Items[i]}
-					Component.LogInfof("ingoingHexOutputId: %v, %T", ingoingHexOutputId, ingoingHexOutputId)
-
-					ingoingOutputIds, err := ingoingHexOutputId.OutputIDs()
-					if err != nil {
-						panic(err)
-					}
-					Component.LogInfof("ingoingOutputIds: %v, %T", ingoingOutputIds, ingoingOutputIds)
-
-					unspentOutput := UTXOOutput{
-						OutputID: ingoingOutputIds[0],
-						Output:   o,
-					}
-					Component.LogInfof("unspentOutput: %v, %T", unspentOutput, unspentOutput)
-
-					unspentOutputs = append(unspentOutputs, unspentOutput)
-				} else {
-					Component.LogInfof("Metadata Feature? true")
+			if basicOutput, ok := output.(*iotago.BasicOutput); ok && basicOutput.FeatureSet().MetadataFeature() == nil {
+				ingoingHexOutputId := iotago.HexOutputIDs{indexerResultSet.Response.Items[i]}
+				ingoingOutputIds, err := ingoingHexOutputId.OutputIDs()
+				if err != nil {
+					panic(err)
 				}
 
+				unspentOutputs = append(unspentOutputs, UTXOOutput{
+					OutputID: ingoingOutputIds[0],
+					Output:   basicOutput,
+				})
 			}
 		}
-
-		Component.LogInfof("unspentOutputs: %v, %T", unspentOutputs, unspentOutputs)
+	}
+	if indexerResultSet.Error != nil {
+		return nil, fmt.Errorf("indexer result set error: %v", indexerResultSet.Error)
 	}
 
-	return unspentOutputs
+	return unspentOutputs, nil
 }
 
-func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []UTXOOutput, address *iotago.Ed25519Address, signer iotago.AddressSigner, hash string) *iotago.Transaction {
-	// Prepare Basic Output Transaction
-	networkID := protoParas.NetworkID()
-	Component.LogInfof("NetworkID: %v, %T", networkID, networkID)
-
-	txBuilder := builder.NewTransactionBuilder(networkID)
-	Component.LogInfof("txBuilder: %v, %T", txBuilder, txBuilder)
+// prepTxPayload prepares the transaction payload by incorporating the notarization hash and creating outputs.
+func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []UTXOOutput, address *iotago.Ed25519Address, signer iotago.AddressSigner, hash string) (*iotago.Transaction, error) {
+	txBuilder := builder.NewTransactionBuilder(protoParas.NetworkID())
+	Component.LogInfof("Building transaction with network ID: %v", protoParas.NetworkID)
 
 	var totalDeposit uint64 = 0
 	for _, unspentOutput := range unspentOutputs {
-		txBuilder.AddInput(&builder.TxInput{UnlockTarget: address, InputID: unspentOutput.OutputID, Input: unspentOutput.Output})
-		Component.LogInfof("Added unspent output to Tx: %v, %T", unspentOutput.OutputID, unspentOutput.OutputID)
-
+		txBuilder.AddInput(&builder.TxInput{
+			UnlockTarget: address,
+			InputID:      unspentOutput.OutputID,
+			Input:        unspentOutput.Output,
+		})
 		totalDeposit += unspentOutput.Output.Deposit()
 	}
-	Component.LogInfof("totalDeposit: %v, %T", totalDeposit, totalDeposit)
 
-	// Add Basic Output with Notarization Metadata
+	// Add a basic output with the notarization hash as metadata.
 	txBuilder.AddOutput(&iotago.BasicOutput{
-		Amount: uint64(1000000),
+		Amount: uint64(1000000), // Example amount for notarization, adjust as needed.
 		Conditions: iotago.UnlockConditions{
 			&iotago.AddressUnlockCondition{Address: address},
 		},
@@ -223,43 +194,44 @@ func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []UTXOO
 		},
 	})
 
-	// Add Basic Output for token remainder
-	txBuilder.AddOutput(&iotago.BasicOutput{
-		Amount: uint64(totalDeposit - 1000000),
-		Conditions: iotago.UnlockConditions{
-			&iotago.AddressUnlockCondition{Address: address},
-		},
-	})
-	Component.LogInfof("txBuilder: %v, %T", txBuilder, txBuilder)
+	// Add a basic output for the token remainder to send back to the sender.
+	if remainder := totalDeposit - 1000000; remainder > 0 {
+		txBuilder.AddOutput(&iotago.BasicOutput{
+			Amount: remainder,
+			Conditions: iotago.UnlockConditions{
+				&iotago.AddressUnlockCondition{Address: address},
+			},
+		})
+	}
 
 	txPayload, err := txBuilder.Build(protoParas, signer)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to build transaction payload: %v", err)
 	}
-	Component.LogInfof("txPayload: %v, %T", txPayload, txPayload)
 
-	return txPayload
+	return txPayload, nil
 }
 
-func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txPayload *iotago.Transaction) string {
+// prepAndSendBlock prepares and submits a block with the transaction payload.
+func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txPayload *iotago.Transaction) (string, error) {
 	ctx := c.Request().Context()
 
 	transactionID, err := txPayload.ID()
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("failed to get transaction ID: %v", err)
 	}
-	Component.LogInfof("transactionID: %v, %T", transactionID.ToHex(), transactionID.ToHex())
+	Component.LogInfof("Transaction ID: %s", transactionID.ToHex())
 
 	inxNodeClient := deps.NodeBridge.INXNodeClient()
 
 	tipsResponse, err := inxNodeClient.Tips(ctx)
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("failed to fetch tips: %v", err)
 	}
 
 	tips, err := tipsResponse.Tips()
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("failed to parse tips from response: %v", err)
 	}
 
 	block, err := builder.NewBlockBuilder().
@@ -267,17 +239,14 @@ func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txP
 		Parents(tips).
 		Payload(txPayload).
 		Build()
-
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("failed to build block: %v", err)
 	}
-
-	Component.LogInfof("block: %v, %T", block, block)
 
 	blockId, err := inxNodeClient.SubmitBlock(ctx, block, protoParas)
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("failed to submit block: %v", err)
 	}
 
-	return blockId.ToHex()
+	return blockId.ToHex(), nil
 }
