@@ -9,5 +9,5 @@ const (
 )
 
 func setupRoutes(e *echo.Echo) {
-	e.POST("/tx", attachTx)
+	e.POST("/notarize/:hash", createNotarization)
 }

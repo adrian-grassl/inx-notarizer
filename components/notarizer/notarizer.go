@@ -31,7 +31,10 @@ const (
 	indexerPluginAvailableTimeout = 30 * time.Second
 )
 
-func attachTx(c echo.Context) error {
+func createNotarization(c echo.Context) error {
+	// Extract the hash parameter from the request path
+	hash := c.Param("hash")
+	Component.LogInfof("Received hash for notarization: %s", hash)
 
 	protoParas := deps.NodeBridge.ProtocolParameters()
 
@@ -46,7 +49,7 @@ func attachTx(c echo.Context) error {
 	unspentOutputs := prepInputs(walletObject.Bech32Address)
 
 	// Prepare transaction payload
-	txPayload := prepTxPayload(protoParas, unspentOutputs, walletObject.Ed25519Address, walletObject.AddressSigner)
+	txPayload := prepTxPayload(protoParas, unspentOutputs, walletObject.Ed25519Address, walletObject.AddressSigner, hash)
 
 	// Prepare and send block
 	hexBlockId := prepAndSendBlock(c, protoParas, txPayload)
@@ -192,7 +195,7 @@ func prepInputs(bech32 string) []UTXOOutput {
 	return unspentOutputs
 }
 
-func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []UTXOOutput, address *iotago.Ed25519Address, signer iotago.AddressSigner) *iotago.Transaction {
+func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []UTXOOutput, address *iotago.Ed25519Address, signer iotago.AddressSigner, hash string) *iotago.Transaction {
 	// Prepare Basic Output Transaction
 	networkID := protoParas.NetworkID()
 	Component.LogInfof("NetworkID: %v, %T", networkID, networkID)
@@ -216,7 +219,7 @@ func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []UTXOO
 			&iotago.AddressUnlockCondition{Address: address},
 		},
 		Features: iotago.Features{
-			&iotago.MetadataFeature{Data: []byte("This is some hash commitment")},
+			&iotago.MetadataFeature{Data: []byte(hash)},
 		},
 	})
 
