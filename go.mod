@@ -4,10 +4,12 @@ go 1.21
 
 require (
 	github.com/iotaledger/hive.go/app v0.0.0-20230629181801-64c530ff9d15
+	github.com/iotaledger/hive.go/logger v0.0.0-20230417125513-e2e89991217f
 	github.com/iotaledger/inx-app v1.0.0-rc.3.0.20230417173151-cde47df5fe79
 	github.com/iotaledger/iota.go/v3 v3.0.0-rc.3
 	github.com/joho/godotenv v1.3.0
 	github.com/labstack/echo/v4 v4.10.2
+	github.com/stretchr/testify v1.8.2
 	github.com/wollac/iota-crypto-demo v0.0.0-20221117162917-b10619eccb98
 	go.uber.org/dig v1.17.0
 )
@@ -20,6 +22,7 @@ require (
 	github.com/cockroachdb/errors v1.9.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.3 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.4.2 // indirect
@@ -41,7 +44,6 @@ require (
 	github.com/iotaledger/hive.go/constraints v0.0.0-20230417125513-e2e89991217f // indirect
 	github.com/iotaledger/hive.go/ds v0.0.0-20230417125513-e2e89991217f // indirect
 	github.com/iotaledger/hive.go/lo v0.0.0-20230417125513-e2e89991217f // indirect
-	github.com/iotaledger/hive.go/logger v0.0.0-20230417125513-e2e89991217f // indirect
 	github.com/iotaledger/hive.go/runtime v0.0.0-20230417125513-e2e89991217f // indirect
 	github.com/iotaledger/hive.go/serializer/v2 v2.0.0-rc.1.0.20230417125513-e2e89991217f // indirect
 	github.com/iotaledger/hive.go/stringify v0.0.0-20230417125513-e2e89991217f // indirect
@@ -62,6 +64,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.7 // indirect
 	github.com/petermattis/goid v0.0.0-20230317030725-371a4b8eda08 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.15.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
@@ -87,4 +90,5 @@ require (
 	google.golang.org/grpc v1.54.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

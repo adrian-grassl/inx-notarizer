@@ -10,6 +10,7 @@ import (
 	"go.uber.org/dig"
 
 	"github.com/adrian-grassl/inx-notarizer/pkg/daemon"
+	"github.com/adrian-grassl/inx-notarizer/pkg/notarizer"
 	"github.com/iotaledger/hive.go/app"
 	"github.com/iotaledger/inx-app/pkg/httpserver"
 	"github.com/iotaledger/inx-app/pkg/nodebridge"
@@ -44,6 +45,8 @@ func run() error {
 		Component.LogInfo("Starting API server ...")
 
 		setupRoutes(e)
+
+		notarizer.LoadEnvVariables()
 
 		go func() {
 			Component.LogInfof("You can now access the API using: http://%s", ParamsRestAPI.BindAddress)
