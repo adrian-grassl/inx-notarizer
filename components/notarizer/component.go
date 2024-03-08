@@ -3,6 +3,7 @@ package notarizer
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -10,10 +11,10 @@ import (
 	"go.uber.org/dig"
 
 	"github.com/adrian-grassl/inx-notarizer/pkg/daemon"
-	"github.com/adrian-grassl/inx-notarizer/pkg/notarizer"
 	"github.com/iotaledger/hive.go/app"
 	"github.com/iotaledger/inx-app/pkg/httpserver"
 	"github.com/iotaledger/inx-app/pkg/nodebridge"
+	"github.com/joho/godotenv"
 )
 
 func init() {
@@ -46,7 +47,7 @@ func run() error {
 
 		setupRoutes(e)
 
-		notarizer.LoadEnvVariables()
+		LoadEnvVariables()
 
 		go func() {
 			Component.LogInfof("You can now access the API using: http://%s", ParamsRestAPI.BindAddress)
@@ -96,4 +97,12 @@ func run() error {
 	}
 
 	return nil
+}
+
+func LoadEnvVariables() {
+	err := godotenv.Load()
+
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 }
