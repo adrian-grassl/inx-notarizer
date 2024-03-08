@@ -70,6 +70,21 @@ func TestPrepWallet(t *testing.T) {
 	})
 }
 
+func TestFilterOutputs(t *testing.T) {
+	t.Run("Several Output Types, with and without metadata", func(t *testing.T) {
+		// Setup
+		outputs := mockUnfilteredOutputs()
+		expectedValue := mockFilteredOutputs()
+
+		// Execute
+		filterOutputs, err := filterOutputs(outputs)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedValue, filterOutputs)
+	})
+}
+
 func mockProtocolParameters() *iotago.ProtocolParameters {
 	return &iotago.ProtocolParameters{
 		Version:       2,
@@ -93,5 +108,61 @@ func mockMnemonic() []string {
 		"evidence", "ostrich", "render", "shock", "ancient",
 		"minute", "hip", "feature", "split", "rigid",
 		"way", "figure", "wasp", "property",
+	}
+}
+
+func mockUnfilteredOutputs() []UTXOOutput {
+	// Mock outputs for testing
+	return []UTXOOutput{
+
+		// Valid Output: Basic Output without MetadataFeature
+		{
+			OutputID: [iotago.OutputIDLength]byte{4, 5, 6}, // Example ID
+			Output: &iotago.BasicOutput{
+				Amount: 2000,
+				Conditions: iotago.UnlockConditions{
+					&iotago.AddressUnlockCondition{Address: &iotago.Ed25519Address{}},
+				},
+			},
+		},
+
+		// Invalid Output: Basic Output with MetadataFeature
+		{
+			OutputID: [iotago.OutputIDLength]byte{1, 2, 3}, // Example ID
+			Output: &iotago.BasicOutput{
+				Amount: 1000,
+				Conditions: iotago.UnlockConditions{
+					&iotago.AddressUnlockCondition{Address: &iotago.Ed25519Address{}},
+				},
+				Features: iotago.Features{
+					&iotago.MetadataFeature{Data: []byte("metadata1")},
+				},
+			},
+		},
+
+		// Invalid Output: Alias Output
+		{
+			OutputID: [iotago.OutputIDLength]byte{1, 2, 3}, // Example ID
+			Output: &iotago.AliasOutput{
+				Amount: 1000,
+				Conditions: iotago.UnlockConditions{
+					&iotago.AddressUnlockCondition{Address: &iotago.Ed25519Address{}},
+				},
+			},
+		},
+	}
+}
+
+func mockFilteredOutputs() []BasicOutput {
+	return []BasicOutput{
+		{
+			OutputID: [iotago.OutputIDLength]byte{4, 5, 6},
+			Output: &iotago.BasicOutput{
+				Amount: 2000,
+				Conditions: iotago.UnlockConditions{
+					&iotago.AddressUnlockCondition{Address: &iotago.Ed25519Address{}},
+				},
+			},
+		},
 	}
 }
