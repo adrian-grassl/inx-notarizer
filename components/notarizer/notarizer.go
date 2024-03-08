@@ -54,6 +54,10 @@ const (
 	indexerPluginAvailableTimeout = 30 * time.Second
 )
 
+func getHealth(c echo.Context) error {
+	return c.NoContent(http.StatusOK)
+}
+
 func createNotarization(c echo.Context) error {
 	// Extract the hash parameter from the request path
 	hash := c.Param("hash")

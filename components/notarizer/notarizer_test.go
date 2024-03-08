@@ -1,13 +1,51 @@
 package notarizer
 
 import (
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"testing"
 
+	"github.com/adrian-grassl/inx-notarizer/components/common"
 	iotago "github.com/iotaledger/iota.go/v3"
 	"github.com/stretchr/testify/assert"
 )
 
+// Integration Tests require the plugin to run
+const pluginURL = "http://127.0.0.1:9687"
+
+func TestCreateNotarization(t *testing.T) {
+	t.Run("Valid hash string passed", func(t *testing.T) {
+		// Preconditions
+		healthURL := pluginURL + "/health"
+
+		if !checkHealth(t, healthURL) {
+			t.Fatalf("Plugin not reachable at %v", healthURL)
+		}
+		// Setup
+		hashValue := "abcd1234"
+		requestURL := fmt.Sprintf("%s/notarize/%s", pluginURL, hashValue)
+
+		// Execution
+		httpResponse, err := common.PostRequest(requestURL, "", nil)
+		assert.NoError(t, err)
+
+		responseBody, err := io.ReadAll(httpResponse.Body)
+		if err != nil {
+			t.Fatalf("Error reading response body: %v", err)
+		}
+
+		t.Logf("Response body: %v", string(responseBody))
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, httpResponse.StatusCode)
+
+	})
+}
+
+// Unit Tests
 func TestLoadEnvVariable(t *testing.T) {
 	t.Run("Environment variable set correctly", func(t *testing.T) {
 		// Setup
@@ -165,4 +203,14 @@ func mockFilteredOutputs() []BasicOutput {
 			},
 		},
 	}
+}
+
+// checkHealth chekcs if the plugin is up and running by querying its health endpoint.
+func checkHealth(t *testing.T, healthURL string) bool {
+	resp, err := http.Get(healthURL)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Logf("Plugin is not up: %v", err)
+		return false
+	}
+	return true
 }
