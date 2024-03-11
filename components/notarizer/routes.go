@@ -10,5 +10,6 @@ const (
 
 func setupRoutes(e *echo.Echo) {
 	e.GET("/health", getHealth)
-	e.POST("/notarize/:hash", createNotarization)
+	e.POST("/create/:hash", createNotarization)
+	e.GET("/verify", verifyNotarization)
 }
