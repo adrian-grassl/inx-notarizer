@@ -235,19 +235,26 @@ func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []Basic
 		totalDeposit += unspentOutput.Output.Deposit()
 	}
 
-	// Add a basic output with the notarization hash as metadata.
-	txBuilder.AddOutput(&iotago.BasicOutput{
-		Amount: uint64(1000000), // Example amount for notarization, adjust as needed.
+	// Prepare Basic Output that will hold notarization hash in its metadata and add it to the transaction
+	notarizationOutput := &iotago.BasicOutput{
 		Conditions: iotago.UnlockConditions{
 			&iotago.AddressUnlockCondition{Address: address},
 		},
 		Features: iotago.Features{
 			&iotago.MetadataFeature{Data: []byte(hash)},
 		},
-	})
+	}
 
-	// Add a basic output for the token remainder to send back to the sender.
-	if remainder := totalDeposit - 1000000; remainder > 0 {
+	notarizationOutputCost := protoParas.RentStructure.MinRent(notarizationOutput)
+	Logger.Infof("notarizationOutputCost: %v", notarizationOutputCost)
+
+	notarizationOutput.Amount = notarizationOutputCost
+
+	// Add a basic output with the notarization hash as metadata.
+	txBuilder.AddOutput(notarizationOutput)
+
+	// Add a basic output that holds the token deposit remainder.
+	if remainder := totalDeposit - notarizationOutputCost; remainder > 0 {
 		txBuilder.AddOutput(&iotago.BasicOutput{
 			Amount: remainder,
 			Conditions: iotago.UnlockConditions{
