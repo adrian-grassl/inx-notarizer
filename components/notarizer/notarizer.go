@@ -225,6 +225,7 @@ func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []Basic
 	txBuilder := builder.NewTransactionBuilder(protoParas.NetworkID())
 	Logger.Infof("Building transaction with network ID: %v", protoParas.NetworkID)
 
+	// Sum up total available token deposit
 	var totalDeposit uint64 = 0
 	for _, unspentOutput := range unspentOutputs {
 		txBuilder.AddInput(&builder.TxInput{
@@ -235,7 +236,7 @@ func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []Basic
 		totalDeposit += unspentOutput.Output.Deposit()
 	}
 
-	// Prepare Basic Output that will hold notarization hash in its metadata and add it to the transaction
+	// Prepare basic output that will hold notarization hash in its metadata and add it to the transaction.
 	notarizationOutput := &iotago.BasicOutput{
 		Conditions: iotago.UnlockConditions{
 			&iotago.AddressUnlockCondition{Address: address},
@@ -244,13 +245,8 @@ func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []Basic
 			&iotago.MetadataFeature{Data: []byte(hash)},
 		},
 	}
-
 	notarizationOutputCost := protoParas.RentStructure.MinRent(notarizationOutput)
-	Logger.Infof("notarizationOutputCost: %v", notarizationOutputCost)
-
 	notarizationOutput.Amount = notarizationOutputCost
-
-	// Add a basic output with the notarization hash as metadata.
 	txBuilder.AddOutput(notarizationOutput)
 
 	// Add a basic output that holds the token deposit remainder.
@@ -263,6 +259,7 @@ func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []Basic
 		})
 	}
 
+	// Build transaction and return it.
 	txPayload, err := txBuilder.Build(protoParas, signer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transaction payload: %v", err)
