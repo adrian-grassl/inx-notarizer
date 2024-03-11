@@ -14,6 +14,7 @@ import (
 	"github.com/iotaledger/hive.go/app"
 	"github.com/iotaledger/inx-app/pkg/httpserver"
 	"github.com/iotaledger/inx-app/pkg/nodebridge"
+	"github.com/iotaledger/iota.go/v3/nodeclient"
 	"github.com/joho/godotenv"
 )
 
@@ -21,6 +22,7 @@ func init() {
 	Component = &app.Component{
 		Name:     "Notarizer",
 		Params:   params,
+		Provide:  provide,
 		DepsFunc: func(cDeps dependencies) { deps = cDeps },
 		Run:      run,
 	}
@@ -33,7 +35,17 @@ var (
 
 type dependencies struct {
 	dig.In
-	NodeBridge *nodebridge.NodeBridge
+	NodeBridge    *nodebridge.NodeBridge
+	INXNodeClient *nodeclient.Client
+}
+
+func provide(c *dig.Container) error {
+	if err := c.Provide(func(nodeBridge *nodebridge.NodeBridge) *nodeclient.Client {
+		return nodeBridge.INXNodeClient()
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func run() error {

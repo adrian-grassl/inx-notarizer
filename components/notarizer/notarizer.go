@@ -140,7 +140,7 @@ func verifyNotarization(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	inxNodeClient := deps.NodeBridge.INXNodeClient()
+	inxNodeClient := deps.INXNodeClient
 
 	output, err := inxNodeClient.OutputByID(ctx, outputID)
 	if err != nil {
@@ -353,7 +353,7 @@ func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txP
 	}
 	Logger.Debugf("Transaction ID: %s", transactionID.ToHex())
 
-	inxNodeClient := deps.NodeBridge.INXNodeClient()
+	inxNodeClient := deps.INXNodeClient
 
 	tipsResponse, err := inxNodeClient.Tips(ctx)
 	if err != nil {
