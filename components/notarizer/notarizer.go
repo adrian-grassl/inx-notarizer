@@ -140,9 +140,7 @@ func verifyNotarization(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	inxNodeClient := deps.INXNodeClient
-
-	output, err := inxNodeClient.OutputByID(ctx, outputID)
+	output, err := deps.INXNodeClient.OutputByID(ctx, outputID)
 	if err != nil {
 		Logger.Debug("No output found with passed outputID.")
 		return c.JSON(http.StatusOK, map[string]bool{"match": false})
@@ -231,9 +229,6 @@ func prepWallet(protoParas *iotago.ProtocolParameters, mnemonic []string) (*Wall
 
 // fetchOutputsByAddress fetches the unspent outputs associated with a certain address.
 func fetchOutputsByAddress(bech32 string) ([]UTXOOutput, error) {
-	ctxIndexer, cancelIndexer := context.WithTimeout(context.Background(), indexerPluginAvailableTimeout)
-	defer cancelIndexer()
-
 	ctxRequest, cancelRequest := context.WithTimeout(context.Background(), inxRequestTimeout)
 	defer cancelRequest()
 
@@ -242,12 +237,7 @@ func fetchOutputsByAddress(bech32 string) ([]UTXOOutput, error) {
 	}
 	Logger.Debugf("Fetching UTXO outputs for address: %s", bech32)
 
-	indexer, err := deps.NodeBridge.Indexer(ctxIndexer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get indexer client: %v", err)
-	}
-
-	indexerResultSet, err := indexer.Outputs(ctxRequest, basicOutputsQuery)
+	indexerResultSet, err := deps.INXindexerClient.Outputs(ctxRequest, basicOutputsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch outputs from indexer: %v", err)
 	}
@@ -353,9 +343,7 @@ func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txP
 	}
 	Logger.Debugf("Transaction ID: %s", transactionID.ToHex())
 
-	inxNodeClient := deps.INXNodeClient
-
-	tipsResponse, err := inxNodeClient.Tips(ctx)
+	tipsResponse, err := deps.INXNodeClient.Tips(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch tips: %v", err)
 	}
@@ -374,7 +362,7 @@ func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txP
 		return "", fmt.Errorf("failed to build block: %v", err)
 	}
 
-	blockId, err := inxNodeClient.SubmitBlock(ctx, block, protoParas)
+	blockId, err := deps.INXNodeClient.SubmitBlock(ctx, block, protoParas)
 	if err != nil {
 		return "", fmt.Errorf("failed to submit block: %v", err)
 	}
