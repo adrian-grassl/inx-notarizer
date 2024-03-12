@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/adrian-grassl/inx-notarizer/components/common"
+	"github.com/adrian-grassl/inx-notarizer/pkg/common"
 	iotago "github.com/iotaledger/iota.go/v3"
 	"github.com/stretchr/testify/assert"
 )
