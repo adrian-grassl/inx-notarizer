@@ -26,7 +26,7 @@ func init() {
 
 	globalLogger, err := logger.NewRootLogger(cfg)
 	if err != nil {
-		panic(err)
+		Logger.Errorf("Error initializing new root logger: %v", err)
 	}
 
 	logger.SetGlobalLogger(globalLogger)
@@ -107,8 +107,8 @@ func createNotarization(c echo.Context) error {
 	// Prepare and send the block with the notarization transaction.
 	hexBlockId, err := prepAndSendBlock(c, protoParas, txPayload)
 	if err != nil {
-		Logger.Errorf("Error sending block: %v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error sending block")
+		Logger.Errorf("Error preparing and sending block: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error preparing and sending block")
 	}
 	Logger.Infof("Block attached with ID: %v", hexBlockId)
 
@@ -263,7 +263,7 @@ func fetchOutputsByAddress(bech32 string) ([]UTXOOutput, error) {
 			ingoingHexOutputId := iotago.HexOutputIDs{indexerResultSet.Response.Items[i]}
 			ingoingOutputIds, err := ingoingHexOutputId.OutputIDs()
 			if err != nil {
-				panic(err)
+				Logger.Errorf("Error parsing hex output IDs: %v", err)
 			}
 
 			unspentOutputs = append(unspentOutputs, UTXOOutput{
