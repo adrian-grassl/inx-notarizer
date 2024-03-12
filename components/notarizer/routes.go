@@ -8,7 +8,14 @@ const (
 	APIRoute = "/api/inx-notarizer/v1"
 )
 
+const (
+	RouteHealth             = "/health"
+	RouteCreateNotarization = "/create/"
+	RouteVerifyNotarization = "/verify"
+)
+
 func setupRoutes(e *echo.Echo) {
-	e.GET("/health", getHealth)
-	e.POST("/notarize/:hash", createNotarization)
+	e.GET(RouteHealth, getHealth)
+	e.POST(RouteCreateNotarization+":hash", createNotarization)
+	e.POST(RouteVerifyNotarization, verifyNotarization)
 }

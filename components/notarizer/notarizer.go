@@ -2,6 +2,7 @@ package notarizer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,7 +26,7 @@ func init() {
 
 	globalLogger, err := logger.NewRootLogger(cfg)
 	if err != nil {
-		panic(err)
+		Logger.Errorf("Error initializing new root logger: %v", err)
 	}
 
 	logger.SetGlobalLogger(globalLogger)
@@ -49,22 +50,32 @@ type WalletObject struct {
 	AddressSigner  iotago.AddressSigner
 }
 
+type verifyNotarizationRequest struct {
+	Hash     string `json:"hash"`
+	OutputID string `json:"outputID"`
+}
+
+type verifyNotarizationResponse struct {
+	Match bool `json:"match"`
+}
+
 const (
 	inxRequestTimeout             = 5 * time.Second
 	indexerPluginAvailableTimeout = 30 * time.Second
 )
 
 func getHealth(c echo.Context) error {
+	Logger.Debugf("Plugin health endpoint called.")
 	return c.NoContent(http.StatusOK)
 }
 
 func createNotarization(c echo.Context) error {
 	// Extract the hash parameter from the request path
 	hash := c.Param("hash")
-	Logger.Infof("Received hash for notarization: %s", hash)
+	Logger.Debugf("Notarization Hash: %s", hash)
 
 	protoParas := deps.NodeBridge.ProtocolParameters()
-	Logger.Infof("protoParas: %v, %T", protoParas, protoParas)
+	Logger.Debugf("Protocol Parameters: %v, %T", protoParas, protoParas)
 
 	// Load mnemonic from .env
 	mnemonic, err := loadEnvVariable("MNEMONIC")
@@ -105,13 +116,80 @@ func createNotarization(c echo.Context) error {
 	// Prepare and send the block with the notarization transaction.
 	hexBlockId, err := prepAndSendBlock(c, protoParas, txPayload)
 	if err != nil {
-		Logger.Errorf("Error sending block: %v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error sending block")
+		Logger.Errorf("Error preparing and sending block: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error preparing and sending block")
 	}
 	Logger.Infof("Block attached with ID: %v", hexBlockId)
 
 	// Return success response with block ID.
 	return c.JSON(http.StatusOK, map[string]string{"blockId": hexBlockId})
+}
+
+func verifyNotarization(c echo.Context) error {
+
+	var requestBody verifyNotarizationRequest
+
+	defer c.Request().Body.Close()
+
+	err := json.NewDecoder(c.Request().Body).Decode(&requestBody)
+	if err != nil {
+		Logger.Errorf("Error decoding request body: %v", requestBody)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error decoding request body")
+	}
+
+	outputID, err := iotago.OutputIDFromHex(requestBody.OutputID)
+	if err != nil {
+		Logger.Errorf("Error converting outputID string: %v", requestBody.OutputID)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error converting outputID string")
+	}
+
+	ctx := c.Request().Context()
+
+	output, err := deps.INXNodeClient.OutputByID(ctx, outputID)
+	if err != nil {
+		Logger.Debug("No output found with passed outputID.")
+		return c.JSON(http.StatusOK, map[string]bool{"match": false})
+	}
+	Logger.Debugf("Output: %v, %T", output, output)
+
+	// Assure type BasicOutput
+	basicOutput, ok := output.(*iotago.BasicOutput)
+	if !ok {
+		// Handle the case where the output isn't a *iotago.BasicOutput
+		Logger.Error("Output is not of type *iotago.BasicOutput")
+		return echo.NewHTTPError(http.StatusInternalServerError, "Unexpected output type")
+	}
+	Logger.Debugf("basicOutput: %v, %T", basicOutput, basicOutput)
+
+	// JSON
+	basicOutputJSON, err := basicOutput.MarshalJSON()
+	if err != nil {
+		Logger.Errorf("Error marshalling basic output to JSON: %v", basicOutput)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error marshalling basic output to JSON")
+	}
+	Logger.Debugf("basicOutputJSON: %v, %T", string(basicOutputJSON), string(basicOutputJSON))
+
+	// Iterate over features to find MetadataFeature
+	for _, feature := range basicOutput.Features {
+		featureJSON, err := feature.MarshalJSON()
+		if err != nil {
+			Logger.Errorf("Error marshalling feature data to JSON: %v", basicOutput)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error marshalling feature data to JSON")
+		}
+		Logger.Debugf("featureJSON: %v, %T", string(featureJSON), string(featureJSON))
+
+		metadataFeature, ok := feature.(*iotago.MetadataFeature)
+		if ok {
+			dataUtf8 := string(metadataFeature.Data)
+			if dataUtf8 == requestBody.Hash {
+				Logger.Debugf("Matching hash found: %v", dataUtf8)
+				return c.JSON(http.StatusOK, map[string]bool{"match": true})
+			}
+		}
+	}
+
+	Logger.Debug("No metadata feature found in output.")
+	return c.JSON(http.StatusOK, map[string]bool{"match": false})
 }
 
 // loadEnvVariable loads mnemonic phrases from the given environment variable.
@@ -165,7 +243,7 @@ func fetchOutputsByAddress(bech32 string) ([]UTXOOutput, error) {
 	basicOutputsQuery := &nodeclient.BasicOutputsQuery{
 		AddressBech32: bech32,
 	}
-	Logger.Infof("Fetching UTXO outputs for address: %s", bech32)
+	Logger.Debugf("Fetching UTXO outputs for address: %s", bech32)
 
 	indexer, err := deps.NodeBridge.Indexer(ctxIndexer)
 	if err != nil {
@@ -188,7 +266,7 @@ func fetchOutputsByAddress(bech32 string) ([]UTXOOutput, error) {
 			ingoingHexOutputId := iotago.HexOutputIDs{indexerResultSet.Response.Items[i]}
 			ingoingOutputIds, err := ingoingHexOutputId.OutputIDs()
 			if err != nil {
-				panic(err)
+				Logger.Errorf("Error parsing hex output IDs: %v", err)
 			}
 
 			unspentOutputs = append(unspentOutputs, UTXOOutput{
@@ -223,7 +301,7 @@ func filterOutputs(unspentOutputs []UTXOOutput) ([]BasicOutput, error) {
 // prepTxPayload prepares the transaction payload by incorporating the notarization hash and creating outputs.
 func prepTxPayload(protoParas *iotago.ProtocolParameters, unspentOutputs []BasicOutput, address *iotago.Ed25519Address, signer iotago.AddressSigner, hash string) (*iotago.Transaction, error) {
 	txBuilder := builder.NewTransactionBuilder(protoParas.NetworkID())
-	Logger.Infof("Building transaction with network ID: %v", protoParas.NetworkID)
+	Logger.Debugf("Building transaction with network ID: %v", protoParas.NetworkID)
 
 	// Sum up total available token deposit
 	var totalDeposit uint64 = 0
@@ -276,11 +354,9 @@ func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txP
 	if err != nil {
 		return "", fmt.Errorf("failed to get transaction ID: %v", err)
 	}
-	Logger.Infof("Transaction ID: %s", transactionID.ToHex())
+	Logger.Debugf("Transaction ID: %s", transactionID.ToHex())
 
-	inxNodeClient := deps.NodeBridge.INXNodeClient()
-
-	tipsResponse, err := inxNodeClient.Tips(ctx)
+	tipsResponse, err := deps.INXNodeClient.Tips(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch tips: %v", err)
 	}
@@ -299,7 +375,7 @@ func prepAndSendBlock(c echo.Context, protoParas *iotago.ProtocolParameters, txP
 		return "", fmt.Errorf("failed to build block: %v", err)
 	}
 
-	blockId, err := inxNodeClient.SubmitBlock(ctx, block, protoParas)
+	blockId, err := deps.INXNodeClient.SubmitBlock(ctx, block, protoParas)
 	if err != nil {
 		return "", fmt.Errorf("failed to submit block: %v", err)
 	}
