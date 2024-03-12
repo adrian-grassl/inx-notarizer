@@ -229,6 +229,9 @@ func prepWallet(protoParas *iotago.ProtocolParameters, mnemonic []string) (*Wall
 
 // fetchOutputsByAddress fetches the unspent outputs associated with a certain address.
 func fetchOutputsByAddress(bech32 string) ([]UTXOOutput, error) {
+	ctxIndexer, cancelIndexer := context.WithTimeout(context.Background(), indexerPluginAvailableTimeout)
+	defer cancelIndexer()
+
 	ctxRequest, cancelRequest := context.WithTimeout(context.Background(), inxRequestTimeout)
 	defer cancelRequest()
 
@@ -237,7 +240,12 @@ func fetchOutputsByAddress(bech32 string) ([]UTXOOutput, error) {
 	}
 	Logger.Debugf("Fetching UTXO outputs for address: %s", bech32)
 
-	indexerResultSet, err := deps.INXindexerClient.Outputs(ctxRequest, basicOutputsQuery)
+	indexer, err := deps.NodeBridge.Indexer(ctxIndexer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get indexer client: %v", err)
+	}
+
+	indexerResultSet, err := indexer.Outputs(ctxRequest, basicOutputsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch outputs from indexer: %v", err)
 	}
