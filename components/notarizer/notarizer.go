@@ -50,6 +50,15 @@ type WalletObject struct {
 	AddressSigner  iotago.AddressSigner
 }
 
+type verifyNotarizationRequest struct {
+	Hash     string `json:"hash"`
+	OutputID string `json:"outputID"`
+}
+
+type verifyNotarizationResponse struct {
+	Match bool `json:"match"`
+}
+
 const (
 	inxRequestTimeout             = 5 * time.Second
 	indexerPluginAvailableTimeout = 30 * time.Second
@@ -117,12 +126,8 @@ func createNotarization(c echo.Context) error {
 }
 
 func verifyNotarization(c echo.Context) error {
-	type body struct {
-		Hash     string `json:"hash"`
-		OutputID string `json:"outputID"`
-	}
 
-	var requestBody body
+	var requestBody verifyNotarizationRequest
 
 	defer c.Request().Body.Close()
 

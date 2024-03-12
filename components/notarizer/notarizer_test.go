@@ -1,6 +1,7 @@
 package notarizer
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,18 +19,20 @@ const pluginURL = "http://127.0.0.1:9687"
 func TestCreateNotarization(t *testing.T) {
 	t.Run("Valid hash string passed", func(t *testing.T) {
 		// Preconditions
-		healthURL := pluginURL + "/health"
+		healthURL := pluginURL + RouteHealth
 
 		if !checkHealth(t, healthURL) {
 			t.Fatalf("Plugin not reachable at %v", healthURL)
 		}
 		// Setup
 		hashValue := "abcd1234"
-		requestURL := fmt.Sprintf("%s/notarize/%s", pluginURL, hashValue)
+		requestURL := fmt.Sprint(pluginURL, RouteCreateNotarization, hashValue)
+		t.Logf("requestURL: %v", requestURL)
 
 		// Execution
 		httpResponse, err := common.PostRequest(requestURL, "", nil)
 		assert.NoError(t, err)
+		t.Logf("httpResponse: %v", httpResponse)
 
 		responseBody, err := io.ReadAll(httpResponse.Body)
 		if err != nil {
@@ -42,6 +45,50 @@ func TestCreateNotarization(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusOK, httpResponse.StatusCode)
 
+	})
+}
+
+func TestVerifyNotarization(t *testing.T) {
+	t.Run("Valid hash string and outputID passed", func(t *testing.T) {
+		// Preconditions
+		healthURL := pluginURL + RouteHealth
+
+		if !checkHealth(t, healthURL) {
+			t.Fatalf("Plugin not reachable at %v", healthURL)
+		}
+		// Setup
+		expectedResponseBody := verifyNotarizationResponse{
+			Match: true,
+		}
+
+		hashValue := "0xe9cee71ab932fde863338d08be4de9dfe39ea049bdafb342ce659ec5450b69ae"
+		basicOutputID := "0x63b2f54e37d49349f865823c4c6f037d2debe2f7022cb1111dfe83a7e47232650000"
+		requestBody := verifyNotarizationRequest{
+			Hash:     hashValue,
+			OutputID: basicOutputID,
+		}
+		t.Logf("requestBody: %v", requestBody)
+
+		requestURL := fmt.Sprint(pluginURL, RouteVerifyNotarization)
+		t.Logf("requestURL: %v", requestURL)
+
+		// Execution
+		httpResponse, err := common.PostRequest(requestURL, "", requestBody)
+		assert.NoError(t, err)
+		t.Logf("httpResponse: %v", httpResponse)
+
+		responseBodyBytes, err := io.ReadAll(httpResponse.Body)
+		assert.NoError(t, err)
+
+		var actualResponse verifyNotarizationResponse
+		err = json.Unmarshal(responseBodyBytes, &actualResponse)
+		assert.NoError(t, err)
+
+		t.Logf("Response body: %v", actualResponse)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedResponseBody, actualResponse)
 	})
 }
 
@@ -205,7 +252,7 @@ func mockFilteredOutputs() []BasicOutput {
 	}
 }
 
-// checkHealth chekcs if the plugin is up and running by querying its health endpoint.
+// checkHealth checks if the plugin is up and running by querying its health endpoint.
 func checkHealth(t *testing.T, healthURL string) bool {
 	resp, err := http.Get(healthURL)
 	if err != nil || resp.StatusCode != http.StatusOK {
