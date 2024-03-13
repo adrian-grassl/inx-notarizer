@@ -1,5 +1,7 @@
 # INX Notarizer Plugin
 
+> **_NOTE:_**  Don't use in a production environment at the current stage. The plugin needs to create outputs in IOTA's UTXO Ledger and thus requires access to an address with funds. In this PoC the used Mnemonic seed phrase is just stored in a `.env` file and not yet a suitable key management solution.
+
 The INX Notarizer Plugin is a custom extension for IOTA Hornet Nodes using the IOTA Node Extension (INX) interface. It provides functionalities related to the notarization of data on the IOTA UTXO Ledger, allowing users to notarize and verify hashes of documents or any arbitrary data, ensuring their integrity and timestamp without the need for a centralized authority.
 
 ## Features
@@ -14,14 +16,14 @@ The plugin exposes three main RESTful endpoints:
 
 ### 1. Health Check
 
-- **Endpoint**: `/api/inx-notarizer/v1/health`
+- **Endpoint**: `http://{your-node-address}:14265/api/notarizer/v1/health`
 - **Method**: `GET`
 - **Description**: Checks the health of the plugin. Useful for monitoring and operational purposes.
 - **Response**: HTTP 200 OK if the plugin is up and running.
 
 ### 2. Create Notarization
 
-- **Endpoint**: `/api/inx-notarizer/v1/create/:hash`
+- **Endpoint**: `http://{your-node-address}:14265/api/notarizer/v1/create/:hash`
 - **Method**: `POST`
 - **Description**: Notarizes a hash by creating a transaction that creates a Basic Output which includes the hash in its metadata field. The hash should be passed as a parameter in the URL.
 - **URL Parameter**: `hash` - The hash of the document or data to be notarized.
@@ -34,7 +36,7 @@ The plugin exposes three main RESTful endpoints:
 ```
 
 ### 3. Verify Notarization
-- **Endpoint**: `/api/inx-notarizer/v1/verify`
+- **Endpoint**: `http://{your-node-address}:14265/api/notarizer/v1/verify`
 - **Method**: `GET`
 - **Description**: Verifies the notarization of a hash by searching the Basic Output that includes the hash in its metadata field.
 - **Query Parameters**:
