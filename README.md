@@ -2,7 +2,7 @@
 
 > **_NOTE:_**  Don't use in a production environment at the current stage. The plugin needs to create outputs in IOTA's UTXO Ledger and thus requires access to an address with funds. In this PoC the used Mnemonic seed phrase is just stored in a `.env` file and not yet a suitable key management solution.
 
-The INX Notarizer Plugin is a custom extension for IOTA Hornet Nodes using the IOTA Node Extension (INX) interface. It provides functionalities related to the notarization of data on the IOTA UTXO Ledger, allowing users to notarize and verify hashes of documents or any arbitrary data, ensuring their integrity and timestamp without the need for a centralized authority.
+The INX Notarizer Plugin is a custom extension for IOTA Hornet Nodes using the IOTA Node Extension (INX) interface. It provides functionalities related to the notarization of data on the IOTA UTXO Ledger, allowing users to notarize and verify hashes of documents or any arbitrary data, ensuring their integrity without the need for a centralized authority.
 
 ## Features
 
