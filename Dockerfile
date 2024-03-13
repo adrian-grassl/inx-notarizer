@@ -31,6 +31,7 @@ FROM gcr.io/distroless/cc-debian11:nonroot
 
 # Copy the app dir into distroless image
 COPY --chown=nonroot:nonroot --from=build /app /app
+COPY .env /app/.env
 
 WORKDIR /app
 USER nonroot

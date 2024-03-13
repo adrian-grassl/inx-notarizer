@@ -5,17 +5,20 @@ import (
 )
 
 const (
-	APIRoute = "/api/inx-notarizer/v1"
-)
+	// API route that will be registered with INX
+	APIRoute = "/api/notarizer/v1"
 
-const (
+	// ParameterHash contains the string that shall be notarized.
+	ParameterHash = "hash"
+
+	// Specific routes
 	RouteHealth             = "/health"
-	RouteCreateNotarization = "/create/"
+	RouteCreateNotarization = "/create/:" + ParameterHash
 	RouteVerifyNotarization = "/verify"
 )
 
 func setupRoutes(e *echo.Echo) {
 	e.GET(RouteHealth, getHealth)
-	e.POST(RouteCreateNotarization+":hash", createNotarization)
+	e.POST(RouteCreateNotarization, createNotarization)
 	e.POST(RouteVerifyNotarization, verifyNotarization)
 }
