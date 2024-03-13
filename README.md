@@ -42,6 +42,15 @@ The plugin exposes three main RESTful endpoints:
 - **Query Parameters**:
   - `hash`: The hash of the document or data to verify.
   - `outputID`: The output ID of the Basic Output where the hash was notarized.
+
+```json
+{
+    "hash": "0xe9cee...",
+    "outputID": "0x63b2f..."
+}
+```
+
+
 - **Response**: JSON object indicating whether the hash matches (true or false).
 
 ```json
