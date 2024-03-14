@@ -17,8 +17,8 @@ const (
 	RouteVerifyNotarization = "/verify"
 )
 
-func setupRoutes(e *echo.Echo) {
-	e.GET(RouteHealth, getHealth)
-	e.POST(RouteCreateNotarization, createNotarization)
-	e.POST(RouteVerifyNotarization, verifyNotarization)
+func setupRoutes(routeGroup *echo.Group) {
+	routeGroup.GET(RouteHealth, getHealth)
+	routeGroup.POST(RouteCreateNotarization, createNotarization)
+	routeGroup.POST(RouteVerifyNotarization, verifyNotarization)
 }

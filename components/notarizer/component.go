@@ -57,7 +57,7 @@ func run() error {
 
 		Component.LogInfo("Starting API server ...")
 
-		setupRoutes(e)
+		setupRoutes(e.Group(APIRoute))
 
 		LoadEnvVariables()
 
